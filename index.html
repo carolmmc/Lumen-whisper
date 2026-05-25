@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumen Whisper | 深邃记忆 (小程序版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;1,400&family=Inter:wght@200;300;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ================= 全局与基础样式 ================= */
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { background-color: #020202; color: #ffffff; font-family: 'Inter', sans-serif; overflow: hidden; width: 100vw; height: 100vh; position: relative; -webkit-overflow-scrolling: touch; }
+        
+        /* 移动端 App 容器，约束尺寸 393px 宽 */
+        #app-container {
+            width: 100%; max-width: 393px; margin: 0 auto; height: 100vh; position: relative;
+            background-color: transparent; box-shadow: 0 0 50px rgba(255,255,255,0.05);
+            overflow: hidden;
+        }
+
+        /* ================= 1. 史诗级开屏加载层 (移动适配版) ================= */
+        #loading-screen {
+            position: absolute; inset: 0; background: #020202; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 2s cubic-bezier(0.4, 0, 0.2, 1), visibility 2s;
+        }
+
+        .source-light {
+            width: 2px; height: 2px; background: #fff; border-radius: 50%;
+            box-shadow: 0 0 20px 3px #fff, 0 0 40px 8px rgba(255,255,255,0.4);
+            position: absolute; top: 18%;
+            animation: flameFlicker 3s infinite alternate;
+        }
+
+        .light-shaft {
+            width: 1px; height: 0; background: linear-gradient(to bottom, #fff, transparent);
+            position: absolute; top: 18%; opacity: 0;
+            animation: lightDrop 2.5s 0.5s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+        }
+
+        /* 核心声波放射动画 (移动端缩小尺寸) */
+        .wave-structure {
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px; margin-top: 80px; height: 150px;
+        }
+        .wave-bar {
+            width: 2px; height: 4px; background: #fff; border-radius: 4px;
+            opacity: 0; box-shadow: 0 0 10px rgba(255,255,255,0.8);
+            transition: all 0.5s ease;
+        }
+        .wb-1 { animation: wavePulse 2.5s 1.5s infinite ease-in-out, fadeIn 1s 1.5s forwards; height: 15px; }
+        .wb-2 { animation: wavePulse 2.0s 1.6s infinite ease-in-out, fadeIn 1s 1.6s forwards; height: 40px; }
+        .wb-3 { animation: wavePulse 1.8s 1.7s infinite ease-in-out, fadeIn 1s 1.7s forwards; height: 80px; }
+        .wb-4 { animation: wavePulse 1.5s 1.8s infinite ease-in-out, fadeIn 1s 1.8s forwards; height: 120px; width: 3px; } 
+        .wb-5 { animation: wavePulse 1.8s 1.7s infinite ease-in-out, fadeIn 1s 1.7s forwards; height: 80px; }
+        .wb-6 { animation: wavePulse 2.0s 1.6s infinite ease-in-out, fadeIn 1s 1.6s forwards; height: 40px; }
+        .wb-7 { animation: wavePulse 2.5s 1.5s infinite ease-in-out, fadeIn 1s 1.5s forwards; height: 15px; }
+
+        /* 文案排版 (移动端防溢出) */
+        .intro-text { margin-top: 60px; text-align: center; width: 100%; padding: 0 20px; }
+        .line-1 {
+            font-family: 'Playfair Display', serif; font-style: italic;
+            font-size: 1.2rem; letter-spacing: 0.2rem; color: #fff;
+            opacity: 0; transform: translateY(20px);
+            animation: textReveal 1.5s 3s forwards;
+        }
+        .line-2 {
+            font-family: 'Inter', sans-serif; font-weight: 200;
+            font-size: 0.65rem; letter-spacing: 0.15rem; color: rgba(255,255,255,0.4);
+            margin-top: 20px; text-transform: uppercase; line-height: 1.6;
+            opacity: 0; transform: translateY(15px);
+            animation: textReveal 1.5s 4.5s forwards;
+        }
+
+        /* 动画关键帧 */
+        @keyframes flameFlicker { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } }
+        @keyframes lightDrop { 0% { height: 0; opacity: 0; } 50% { opacity: 1; } 100% { height: 250px; opacity: 0; } }
+        @keyframes wavePulse { 0%, 100% { transform: scaleY(0.5); opacity: 0.3; } 50% { transform: scaleY(1.2); opacity: 1; } }
+        @keyframes fadeIn { to { opacity: 1; } }
+        @keyframes textReveal { to { opacity: 1; transform: translateY(0); } }
+
+        /* ================= 2. 交互界面与折叠菜单 ================= */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+
+        /* 顶部栏 */
+        header { 
+            position: absolute; top: 0; left: 0; w-full; width: 100%; 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: max(20px, env(safe-area-inset-top)) 25px 20px 25px; 
+            pointer-events: auto; z-index: 50; 
+        }
+        
+        .brand-logo { font-family: 'Cinzel Decorative', serif; font-size: 1.2rem; color: #fff; letter-spacing: 2px; font-weight: 700; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+
+        /* 汉堡折叠菜单按钮 */
+        .menu-btn { 
+            width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); 
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); 
+            display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s; color: rgba(255,255,255,0.7);
+        }
+        .menu-btn:active { background: rgba(255,255,255,0.15); transform: scale(0.95); }
+
+        /* 展开的下拉菜单面板 */
+        #dropdown-menu {
+            position: absolute; top: calc(max(20px, env(safe-area-inset-top)) + 50px); right: 25px;
+            background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
+            display: flex; flex-direction: column; padding: 8px;
+            opacity: 0; transform: translateY(-10px) scale(0.95); pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform-origin: top right; z-index: 45;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.8);
+        }
+        #dropdown-menu.active { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        
+        .menu-item {
+            padding: 15px 25px; color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.75rem; letter-spacing: 3px; 
+            border-radius: 10px; transition: all 0.3s; display: flex; align-items: center; gap: 10px;
+        }
+        .menu-item:active { background: rgba(255,255,255,0.1); color: #fff; }
+        .menu-item.current { color: #fff; background: rgba(255,255,255,0.05); font-weight: 600; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+
+        /* 核心垂直标题与播放按钮 (手机端震撼堆叠排版) */
+        .center-content { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            text-align: center; pointer-events: auto; z-index: 20; w-full; width: 100%;
+        }
+        
+        .main-text { 
+            font-family: 'Cinzel Decorative', serif; font-size: 3.5rem; font-weight: 700; 
+            letter-spacing: 6px; text-shadow: 0 0 30px rgba(255, 255, 255, 0.4); line-height: 1;
+        }
+        
+        .sub-title { font-size: 0.6rem; letter-spacing: 6px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; font-weight: 300; margin-top: 15px; }
+        
+        /* 播放按钮缩小适配手机 */
+        .play-btn { 
+            width: 60px; height: 60px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 50%; 
+            display: inline-flex; align-items: center; justify-content: center; cursor: pointer; 
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); backdrop-filter: blur(8px); 
+            background: rgba(255,255,255,0.02); margin: 5px 0;
+        }
+        .play-btn:active { background: rgba(255, 255, 255, 0.15); transform: scale(0.9); }
+        .play-btn::after { content: ''; border-style: solid; border-width: 8px 0 8px 12px; border-color: transparent transparent transparent #fff; margin-left: 5px; }
+
+        /* ================= 3. 3D 环绕图片层 (移动端尺寸优化) ================= */
+        #gallery-container { position: absolute; top: 50%; left: 50%; width: 0; height: 0; perspective: 1000px; transform-style: preserve-3d; z-index: 5; pointer-events: none; }
+        
+        /* 手机端图片缩小 */
+        .floating-img { 
+            position: absolute; top: 0; left: 0; width: 80px; height: 110px; object-fit: cover; 
+            border-radius: 6px; pointer-events: auto; cursor: pointer; filter: grayscale(100%) brightness(0.5); 
+            opacity: 0.6; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.8); 
+            transition: filter 0.4s, opacity 0.4s, box-shadow 0.4s, transform 0.4s; transform-origin: center center; 
+        }
+        /* 手机端主要靠手指点击时点亮 */
+        .floating-img:active { filter: grayscale(0%) brightness(1.1) !important; opacity: 1 !important; box-shadow: 0 0 20px rgba(255, 255, 255, 0.2), 0 10px 30px rgba(0, 0, 0, 0.9); z-index: 100 !important; transform: scale(1.1) !important; }
+    </style>
+</head>
+<body>
+
+    <canvas id="starfield" class="fixed inset-0 w-full h-full -z-10 pointer-events-none"></canvas>
+
+    <div id="app-container">
+
+        <div id="loading-screen">
+            <div class="source-light"></div>
+            <div class="light-shaft"></div>
+            
+            <div class="wave-structure">
+                <div class="wave-bar wb-1"></div>
+                <div class="wave-bar wb-2"></div>
+                <div class="wave-bar wb-3"></div>
+                <div class="wave-bar wb-4"></div> <div class="wave-bar wb-5"></div>
+                <div class="wave-bar wb-6"></div>
+                <div class="wave-bar wb-7"></div>
+            </div>
+
+            <div class="intro-text">
+                <p class="line-1">每一张照片，都有它的旋律。</p>
+                <p class="line-2">LumenWhisper 将光影低语<br>把静态画面化作可听的记忆</p>
+            </div>
+        </div>
+        
+        <div id="ui-layer">
+            <header>
+                <div class="brand-logo">L.W.</div>
+                <div class="menu-btn" id="menu-toggle">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </div>
+            </header>
+
+            <nav id="dropdown-menu">
+                <a href="index.html" class="menu-item current">
+                    <i data-lucide="home" class="w-4 h-4"></i> 首页 | HOME
+                </a>
+                <a href="experience.html" class="menu-item">
+                    <i data-lucide="aperture" class="w-4 h-4"></i> 体验 | EXPERIENCE
+                </a>
+                <a href="memory.html" class="menu-item">
+                    <i data-lucide="archive" class="w-4 h-4"></i> 记忆 | MEMORY
+                </a>
+            </nav>
+
+            <div class="center-content">
+                <div class="main-text">LUMEN</div>
+                <div class="play-btn" onclick="window.location.href='experience.html'" title="开启体验"></div> 
+                <div class="main-text">WHISPER</div>
+                <div class="sub-title">于浩瀚之中，捕捉光的耳语</div>
+            </div>
+        </div>
+        
+        <div id="gallery-container"></div>
+
+    </div> <script>
+        lucide.createIcons();
+
+        // --- 0. 开屏加载控制逻辑 ---
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('loading-screen');
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => { loadingScreen.style.visibility = 'hidden'; }, 2000);
+            }, 7500); 
+        });
+
+        // --- 1. 折叠菜单交互逻辑 ---
+        const menuToggle = document.getElementById('menu-toggle');
+        const dropdownMenu = document.getElementById('dropdown-menu');
+        const menuIcon = menuToggle.querySelector('i');
+
+        menuToggle.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止冒泡
+            dropdownMenu.classList.toggle('active');
+            if(dropdownMenu.classList.contains('active')) {
+                menuIcon.setAttribute('data-lucide', 'x');
+                menuToggle.style.background = 'rgba(255,255,255,0.15)';
+            } else {
+                menuIcon.setAttribute('data-lucide', 'menu');
+                menuToggle.style.background = 'rgba(255,255,255,0.05)';
+            }
+            lucide.createIcons();
+        });
+
+        // 点击空白处关闭菜单
+        document.addEventListener('click', (e) => {
+            if(dropdownMenu.classList.contains('active') && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.classList.remove('active');
+                menuIcon.setAttribute('data-lucide', 'menu');
+                menuToggle.style.background = 'rgba(255,255,255,0.05)';
+                lucide.createIcons();
+            }
+        });
+
+        // --- 2. 背景星空逻辑 (支持手指滑动) ---
+        const canvas = document.getElementById('starfield');
+        const ctx = canvas.getContext('2d');
+        let width, height; let stars = []; const numStars = 400; // 手机端适当减少星星
+        let mouseX = 0, mouseY = 0, targetMouseX = 0, targetMouseY = 0;
+
+        function resizeCanvas() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+        
+        // 监听鼠标与手机触摸事件
+        document.addEventListener('mousemove', (e) => { targetMouseX = (e.clientX - width / 2) * 0.5; targetMouseY = (e.clientY - height / 2) * 0.5; });
+        document.addEventListener('touchmove', (e) => { targetMouseX = (e.touches[0].clientX - width / 2) * 0.5; targetMouseY = (e.touches[0].clientY - height / 2) * 0.5; }, {passive: true});
+
+        class Star {
+            constructor() { this.reset(); }
+            reset() { this.x = (Math.random() - 0.5) * width * 2; this.y = (Math.random() - 0.5) * height * 2; this.z = Math.random() * width; this.pz = this.z; }
+            update(speed) { this.z -= speed; if (this.z < 1) { this.reset(); this.z = width; this.pz = this.z; } }
+            draw() {
+                const cx = width / 2 + mouseX, cy = height / 2 + mouseY;
+                const sx = (this.x / this.z) * width + cx, sy = (this.y / this.z) * height + cy;
+                const px = (this.x / this.pz) * width + cx, py = (this.y / this.pz) * height + cy;
+                this.pz = this.z;
+                if (sx < 0 || sx > width || sy < 0 || sy > height) return;
+                const size = (1 - this.z / width) * 2, opacity = 1 - this.z / width;
+                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
+                ctx.lineWidth = size; ctx.strokeStyle = `rgba(230, 240, 255, ${opacity})`; ctx.stroke();
+            }
+        }
+        for (let i = 0; i < numStars; i++) stars.push(new Star());
+
+        // --- 3. 3D 环绕画廊逻辑 (针对手机缩小轨道与尺寸) ---
+        const gallery = document.getElementById('gallery-container');
+        const imagesData = []; const numImages = 10; // 减少一点图片防止手机卡顿
+        for (let i = 0; i < numImages; i++) {
+            const img = document.createElement('img'); img.src = `https://picsum.photos/200/300?random=${i}`; img.className = 'floating-img';
+            gallery.appendChild(img);
+            // 轨道半径缩小为 120-220，适合 393px 屏幕
+            imagesData.push({ el: img, angle: (i / numImages) * Math.PI * 2, radius: 120 + Math.random() * 100, yOffset: (Math.random() - 0.5) * 400, speed: 0.0015 + Math.random() * 0.001 });
+        }
+
+        let time = 0;
+        function animate() {
+            mouseX += (targetMouseX - mouseX) * 0.05; mouseY += (targetMouseY - mouseY) * 0.05;
+            ctx.fillStyle = 'rgba(2, 2, 2, 0.15)'; ctx.fillRect(0, 0, width, height);
+            const speedFactor = 3 + (Math.abs(targetMouseX) / width) * 15;
+            stars.forEach(star => { star.update(speedFactor); star.draw(); });
+            
+            // 照片画廊随手指方向旋转
+            gallery.style.transform = `rotateX(${-mouseY * 0.05}deg) rotateY(${mouseX * 0.05}deg)`;
+            
+            imagesData.forEach(item => {
+                item.angle += item.speed;
+                const x = Math.cos(item.angle) * item.radius, z = Math.sin(item.angle) * item.radius, y = item.yOffset + Math.sin(time + item.angle * 3) * 20; 
+                // 修正偏移中心点，图片尺寸为 80x110，所以减去 40 和 55
+                item.el.style.transform = `translate3d(${x - 40}px, ${y - 55}px, ${z}px)`; item.el.style.zIndex = Math.round(z + 1000); 
+                const depthRatio = (z + item.radius) / (item.radius * 2); 
+                if(!item.el.matches(':active')) { item.el.style.filter = `grayscale(100%) brightness(${0.3 + depthRatio * 0.5}) blur(${(1 - depthRatio) * 4}px)`; item.el.style.opacity = 0.2 + depthRatio * 0.7; }
+            });
+            time += 0.02; requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
+
+```

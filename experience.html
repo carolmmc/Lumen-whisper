@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LumenWhisper - 体验 (小程序版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020202;
+            color: #f8fafc;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch; 
+        }
+
+        /* 移动端 App 容器，约束尺寸 393px 宽 */
+        #app-container {
+            width: 100%;
+            max-width: 393px;
+            margin: 0 auto;
+            min-height: 100vh;
+            position: relative;
+            background-color: transparent;
+            box-shadow: 0 0 50px rgba(255,255,255,0.05);
+        }
+
+        /* 玻璃拟态卡片 */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.01));
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* 上传区域虚线动画 */
+        .dashed-border { 
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%23ffffff40' stroke-width='2' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e"); 
+            border-radius: 20px; 
+            transition: all 0.4s; 
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* 图像扫描线动画 */
+        .scanner { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: #ffffff; box-shadow: 0 0 10px 3px rgba(255, 255, 255, 0.5); animation: scan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate; display: none; z-index: 10;}
+        @keyframes scan { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: calc(100% - 2px); opacity: 0; } }
+        
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 音乐播放器波形动画 */
+        .visualizer-bar { width: 3px; border-radius: 2px; background: rgba(255,255,255,0.8); animation: bounce 1s ease-in-out infinite alternate; transform-origin: bottom; }
+        @keyframes bounce { 0% { transform: scaleY(0.2); opacity: 0.5; } 100% { transform: scaleY(1); opacity: 1; } }
+        .paused .visualizer-bar { animation-play-state: paused; transform: scaleY(0.1); }
+        
+        .spin-slow { animation: spin 8s linear infinite; }
+        .paused .spin-slow { animation-play-state: paused; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* 底部导航栏 */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 393px;
+            display: flex; justify-content: space-around; align-items: center;
+            background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+            z-index: 50;
+        }
+        .bottom-nav a { display: flex; flex-direction: column; align-items: center; gap: 4px; color: rgba(255, 255, 255, 0.4); text-decoration: none; transition: color 0.3s; }
+        .bottom-nav a.active, .bottom-nav a:hover { color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <canvas id="starfield" class="fixed inset-0 w-full h-full -z-10 pointer-events-none"></canvas>
+
+    <div id="app-container">
+
+        <header class="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] z-30 flex justify-between items-center px-6 py-4 bg-gradient-to-b from-black/90 to-transparent pt-[max(16px,env(safe-area-inset-top))]">
+            <div class="flex flex-col">
+                <h1 class="text-xl font-bold tracking-widest text-white" style="font-family: 'Playfair Display', serif; text-shadow: 0 0 15px rgba(255,255,255,0.3);">
+                    Lumen Whisper
+                </h1>
+                <p class="text-white/50 font-light text-[9px] mt-1 tracking-[0.2em] uppercase">跨模态记忆引擎</p>
+            </div>
+            <button id="settings-btn" class="p-2 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full border border-white/10 backdrop-blur-md">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+            </button>
+        </header>
+
+        <main class="w-full flex flex-col gap-5 pt-24 pb-28 px-4 relative z-10">
+            
+            <div class="glass-card rounded-[1.5rem] p-5 flex flex-col w-full">
+                <h2 class="text-sm font-light tracking-wider mb-4 text-white/90 flex items-center gap-2">
+                    <i data-lucide="image" class="w-4 h-4 text-white/70"></i>视觉输入
+                </h2>
+
+                <div id="upload-area" class="dashed-border h-48 flex flex-col items-center justify-center cursor-pointer relative overflow-hidden group">
+                    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/jpeg, image/png, image/webp">
+                    <div class="text-center">
+                        <div class="bg-white/5 border border-white/10 p-4 rounded-full inline-block mb-3 backdrop-blur-md">
+                            <i data-lucide="upload-cloud" class="w-6 h-6 text-white/80"></i>
+                        </div>
+                        <p class="text-white/80 font-light text-sm tracking-wide">点击/图库上传</p>
+                        <p class="text-white/40 text-[10px] mt-2 tracking-wider"></p>
+                    </div>
+                </div>
+
+                <div id="preview-area" class="hidden h-56 relative rounded-2xl overflow-hidden glass-panel">
+                    <img id="image-preview" src="" alt="预览" class="w-full h-full object-cover">
+                    <div id="scanner" class="scanner"></div>
+                    <div id="analysis-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity duration-500">
+                        <i data-lucide="loader-2" class="w-8 h-8 text-white animate-spin mb-3"></i>
+                        <p id="analysis-text" class="text-white/90 font-light tracking-widest text-xs animate-pulse">提取视觉特征中...</p>
+                    </div>
+                </div>
+
+                <button id="reset-btn" class="hidden mt-4 w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/80 font-light text-sm tracking-wider flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>重置画作
+                </button>
+            </div>
+
+            <div class="glass-panel rounded-[1.5rem] p-5 relative overflow-hidden w-full">
+                
+                <h2 id="right-panel-title" class="text-sm font-light tracking-wider mb-5 text-white/90 flex items-center gap-2">
+                    <i data-lucide="brain-circuit" class="w-4 h-4 text-white/70" id="right-panel-icon"></i><span>共鸣光谱</span>
+                </h2>
+
+                <div id="empty-state" class="flex flex-col items-center justify-center text-white/30 py-8">
+                    <i data-lucide="bar-chart-2" class="w-8 h-8 mb-3 opacity-50 font-light"></i>
+                    <p class="tracking-widest font-light text-xs">等待影像信号输入...</p>
+                </div>
+
+                <div id="results-area" class="hidden flex-col gap-5">
+                    <div class="fade-in" style="animation-delay: 0.1s;">
+                        <p class="text-[10px] tracking-widest text-white/50 mb-2 flex items-center gap-1.5"><i data-lucide="palette" class="w-3 h-3"></i> 主导色彩谱系</p>
+                        <div id="color-palette" class="flex gap-2"></div>
+                    </div>
+
+                    <div class="fade-in" style="animation-delay: 0.3s;">
+                        <p class="text-[10px] tracking-widest text-white/50 mb-2 flex items-center gap-1.5"><i data-lucide="tags" class="w-3 h-3"></i> 视觉语义标签</p>
+                        <div id="vision-tags" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <div class="fade-in bg-white/5 p-4 rounded-xl border border-white/5" style="animation-delay: 0.5s;">
+                        <p class="text-[10px] tracking-widest text-white/50 mb-3 flex items-center gap-1.5"><i data-lucide="activity" class="w-3 h-3 text-white/80"></i> 感知共振频率</p>
+                        <div class="flex justify-between items-end h-12 gap-1.5" id="emotion-bars"></div>
+                        <div class="flex justify-between mt-2 text-[9px] text-white/40 font-light tracking-wider" id="emotion-labels"></div>
+                    </div>
+
+                    <div class="fade-in mt-2" style="animation-delay: 0.7s;">
+                        <div class="bg-white/5 p-3 rounded-xl border border-white/10 mb-4">
+                            <div class="grid grid-cols-2 gap-2 text-[10px] tracking-wider">
+                                <div class="flex justify-between"><span class="text-white/40">BPM</span><span id="res-bpm" class="text-white/90">--</span></div>
+                                <div class="flex justify-between"><span class="text-white/40">Key</span><span id="res-key" class="text-white/90">--</span></div>
+                                <div class="flex justify-between"><span class="text-white/40">Genre</span><span id="res-genre" class="text-white/90">--</span></div>
+                                <div class="flex justify-between"><span class="text-white/40">Timbre</span><span id="res-timbre" class="text-white/90 truncate max-w-[60px] text-right">--</span></div>
+                            </div>
+                        </div>
+                        <button id="generate-music-btn" class="w-full py-3.5 rounded-xl bg-white/10 border border-white/20 text-white tracking-widest text-sm shadow-[0_0_15px_rgba(255,255,255,0.05)] flex justify-center items-center gap-2">
+                            <i data-lucide="zap" class="w-4 h-4 fill-white"></i>提取音乐潜意识
+                        </button>
+                    </div>
+                </div>
+
+                <div id="generation-loading-area" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md z-20 flex-col items-center justify-center p-6 text-center">
+                    <div class="relative w-16 h-16 mb-5">
+                        <div class="absolute inset-0 border-2 border-white/10 rounded-full"></div>
+                        <div class="absolute inset-0 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <i data-lucide="music" class="absolute inset-0 m-auto w-5 h-5 text-white/80 animate-pulse"></i>
+                    </div>
+                    <h3 id="loading-status-text" class="text-sm font-light tracking-widest text-white mb-2">多模态映射中...</h3>
+                    <p id="loading-sub-text" class="text-[10px] font-light tracking-wider text-white/40 mb-6">正在转化声学参数</p>
+                    <div class="w-full bg-white/10 rounded-full h-1 mb-2">
+                        <div id="generation-progress-bar" class="bg-white h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="w-full flex justify-between text-[9px] tracking-wider text-white/40 uppercase"><span>System Comm</span><span id="generation-progress-text">0%</span></div>
+                </div>
+
+                <div id="music-player-area" class="hidden flex-col items-center justify-center py-4 fade-in paused">
+                    <div class="relative w-28 h-28 mb-6">
+                        <div class="absolute inset-[-10px] bg-white rounded-full blur-xl opacity-10 spin-slow"></div>
+                        <div class="relative w-full h-full rounded-full border border-white/20 overflow-hidden shadow-xl spin-slow bg-black/50 flex items-center justify-center">
+                            <div id="player-cover-bg" class="absolute inset-0 opacity-40 mix-blend-overlay"></div>
+                            <i data-lucide="disc" class="w-8 h-8 text-white/30 font-light"></i>
+                        </div>
+                    </div>
+                    <div class="text-center mb-6">
+                        <h3 id="player-song-title" class="text-base tracking-widest font-light text-white mb-1" style="font-family: 'Playfair Display', serif;">光影低语</h3>
+                        <p class="text-[10px] tracking-widest text-white/40 uppercase">Audio Generated</p>
+                    </div>
+                    <div class="flex items-end justify-center gap-1.5 h-8 mb-8 w-full px-6">
+                        <div class="visualizer-bar h-full" style="animation-delay: 0.1s"></div><div class="visualizer-bar h-3/4" style="animation-delay: 0.3s"></div><div class="visualizer-bar h-1/2" style="animation-delay: 0.5s"></div><div class="visualizer-bar h-full" style="animation-delay: 0.2s"></div><div class="visualizer-bar h-5/6" style="animation-delay: 0.4s"></div><div class="visualizer-bar h-2/3" style="animation-delay: 0.6s"></div><div class="visualizer-bar h-full" style="animation-delay: 0.15s"></div>
+                    </div>
+                    <audio id="generated-audio" src="" preload="auto"></audio>
+                    <div class="flex items-center gap-8">
+                        <button class="p-2 text-white/40 hover:text-white transition-colors"><i data-lucide="download" class="w-5 h-5"></i></button>
+                        <button id="play-pause-btn" class="w-14 h-14 bg-white/10 border border-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-white/20 transition-all">
+                            <i data-lucide="play" id="play-icon" class="w-5 h-5 ml-1"></i><i data-lucide="pause" id="pause-icon" class="w-5 h-5 hidden"></i>
+                        </button>
+                        <button class="p-2 text-white/40 hover:text-white transition-colors"><i data-lucide="share-2" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <a href="index.html">
+                <i data-lucide="home" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">首页</span>
+            </a>
+            <a href="experience.html" class="active">
+                <i data-lucide="aperture" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">体验</span>
+            </a>
+            <a href="memory.html">
+                <i data-lucide="archive" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">记忆</span>
+            </a>
+        </nav>
+
+        <div id="api-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
+            <div class="bg-black/80 border border-white/20 rounded-2xl p-6 w-full max-w-[320px] shadow-2xl backdrop-blur-xl">
+                <h3 class="text-sm font-light tracking-wider text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-white/70"></i> 本地数据映射模式
+                </h3>
+                <p class="text-xs font-light text-white/50 leading-relaxed mb-6">
+                    当前为移动端演示版本，已断开 API 依赖。<br><br>系统将通过图像文件名（如“星空”、“下雨”）自动检索本地数据库，为您呈现极致流畅的秒开体验。
+                </p>
+                <button id="close-modal-btn" class="w-full py-3 rounded-lg bg-white/10 text-white transition-colors border border-white/20 font-light tracking-wider text-xs">我知道了</button>
+            </div>
+        </div>
+
+    </div>
+
+    <canvas id="hidden-canvas" class="hidden"></canvas>
+    
+    <script>
+        lucide.createIcons();
+        
+        // ================= 1. 背景星轨动画引擎 =================
+        const canvas = document.getElementById('starfield');
+        const ctx = canvas.getContext('2d');
+        let width, height; let stars = []; const numStars = 300;
+        let mouseX = 0, mouseY = 0, targetMouseX = 0, targetMouseY = 0;
+
+        function resizeCanvas() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+        document.addEventListener('touchmove', (e) => { targetMouseX = (e.touches[0].clientX - width / 2) * 0.5; targetMouseY = (e.touches[0].clientY - height / 2) * 0.5; });
+
+        class Star {
+            constructor() { this.reset(); }
+            reset() { this.x = (Math.random() - 0.5) * width * 2; this.y = (Math.random() - 0.5) * height * 2; this.z = Math.random() * width; this.pz = this.z; }
+            update(speed) { this.z -= speed; if (this.z < 1) { this.reset(); this.z = width; this.pz = this.z; } }
+            draw() {
+                const cx = width / 2 + mouseX, cy = height / 2 + mouseY;
+                const sx = (this.x / this.z) * width + cx, sy = (this.y / this.z) * height + cy;
+                const px = (this.x / this.pz) * width + cx, py = (this.y / this.pz) * height + cy;
+                this.pz = this.z;
+                if (sx < 0 || sx > width || sy < 0 || sy > height) return;
+                const size = (1 - this.z / width) * 2, opacity = 1 - this.z / width;
+                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
+                ctx.lineWidth = size; ctx.strokeStyle = `rgba(230, 240, 255, ${opacity})`; ctx.stroke();
+            }
+        }
+        for (let i = 0; i < numStars; i++) stars.push(new Star());
+
+        function animateStars() {
+            mouseX += (targetMouseX - mouseX) * 0.05; mouseY += (targetMouseY - mouseY) * 0.05;
+            ctx.fillStyle = 'rgba(2, 2, 2, 0.2)'; ctx.fillRect(0, 0, width, height);
+            const speedFactor = 2 + (Math.abs(targetMouseX) / width) * 10;
+            stars.forEach(star => { star.update(speedFactor); star.draw(); });
+            requestAnimationFrame(animateStars);
+        }
+        animateStars();
+
+        // ================= 2. 界面元素获取 =================
+        const uploadArea = document.getElementById('upload-area'), fileInput = document.getElementById('file-input'), previewArea = document.getElementById('preview-area'), imagePreview = document.getElementById('image-preview'), scanner = document.getElementById('scanner'), analysisOverlay = document.getElementById('analysis-overlay'), analysisText = document.getElementById('analysis-text'), resetBtn = document.getElementById('reset-btn');
+        const rightPanelTitle = document.getElementById('right-panel-title'), rightPanelIcon = document.getElementById('right-panel-icon'), emptyState = document.getElementById('empty-state');
+        const resultsArea = document.getElementById('results-area'), colorPalette = document.getElementById('color-palette'), visionTags = document.getElementById('vision-tags'), emotionBars = document.getElementById('emotion-bars'), emotionLabels = document.getElementById('emotion-labels'), generateMusicBtn = document.getElementById('generate-music-btn');
+        const generationLoadingArea = document.getElementById('generation-loading-area'), loadingStatusText = document.getElementById('loading-status-text'), loadingSubText = document.getElementById('loading-sub-text'), generationProgressBar = document.getElementById('generation-progress-bar'), generationProgressText = document.getElementById('generation-progress-text');
+        const musicPlayerArea = document.getElementById('music-player-area'), playerCoverBg = document.getElementById('player-cover-bg'), playerSongTitle = document.getElementById('player-song-title'), generatedAudio = document.getElementById('generated-audio'), playPauseBtn = document.getElementById('play-pause-btn'), playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
+
+        const apiModal = document.getElementById('api-modal');
+        document.getElementById('settings-btn').addEventListener('click', () => { apiModal.classList.remove('hidden'); apiModal.classList.add('flex'); });
+        document.getElementById('close-modal-btn').addEventListener('click', () => { apiModal.classList.add('hidden'); apiModal.classList.remove('flex'); });
+
+        // ================= 3. 名画与音乐匹配数据库 =================
+        const artDatabase = [
+            {
+                keywords: ["风铃", "杏花", "轻盈"],
+                audioUrl: "./风铃日系故事感魔幻轻松神秘轻盈.mp3",
+                title: "《杏花绽放的微风》",
+                tags: ["自然生机", "日系轻盈", "神秘莫测"],
+                emotions: [{name: '宁静', val: 85, color: 'bg-white/80'}, {name: '神秘', val: 75, color: 'bg-white/60'}, {name: '希望', val: 60, color: 'bg-white/40'}],
+                params: { bpm: '85 BPM', key: 'C Major', genre: 'Ambient', timbre: '风铃/弦乐' }
+            },
+            {
+                keywords: ["悲伤", "下雨", "咖啡馆", "单一"],
+                audioUrl: "./钢琴悲伤缓慢下雨单一按键.mp3",
+                title: "《雨夜咖啡馆的倒影》",
+                tags: ["夜间摄影", "室内氛围", "孤独呢喃"],
+                emotions: [{name: '忧郁', val: 95, color: 'bg-white/80'}, {name: '宁静', val: 80, color: 'bg-white/60'}, {name: '深沉', val: 70, color: 'bg-white/40'}],
+                params: { bpm: '60 BPM', key: 'A Minor', genre: 'Solo Piano', timbre: '极简钢琴' }
+            },
+            {
+                keywords: ["鸟叫", "自然", "温暖", "撑伞", "莫奈"],
+                audioUrl: "./钢琴鸟叫自然温暖缓慢安逸舒适.mp3",
+                title: "《微风中的和煦晨光》",
+                tags: ["自然风光", "印象派光影", "温馨日常"],
+                emotions: [{name: '温暖', val: 90, color: 'bg-white/80'}, {name: '安逸', val: 85, color: 'bg-white/60'}, {name: '生机', val: 70, color: 'bg-white/40'}],
+                params: { bpm: '75 BPM', key: 'G Major', genre: 'Acoustic', timbre: '自然采样' }
+            },
+            {
+                keywords: ["星空", "快速", "希望", "梵高"],
+                audioUrl: "./钢琴弦乐快速轻快重复自由希望——梵高星空.mp3",
+                title: "《星夜的自由回响》",
+                tags: ["宏大叙事", "流动的光影", "夜空幻想"],
+                emotions: [{name: '活力', val: 90, color: 'bg-white/80'}, {name: '期待', val: 85, color: 'bg-white/60'}, {name: '自由', val: 80, color: 'bg-white/40'}],
+                params: { bpm: '120 BPM', key: 'D Major', genre: 'Cinematic', timbre: '钢琴/弦乐' }
+            },
+            {
+                keywords: ["青春", "年轻", "犹豫", "日出", "印象"],
+                audioUrl: "./钢琴弦乐青春年轻犹豫期待生机懵懂.mp3",
+                title: "《印象·日出的懵懂》",
+                tags: ["光影交错", "朦胧意境", "晨曦微光"],
+                emotions: [{name: '期待', val: 88, color: 'bg-white/80'}, {name: '生机', val: 82, color: 'bg-white/60'}, {name: '犹豫', val: 65, color: 'bg-white/40'}],
+                params: { bpm: '95 BPM', key: 'F Major', genre: 'Modern', timbre: '清脆钢琴' }
+            }
+        ];
+
+        const fallbackData = {
+            audioUrl: "./风铃日系故事感魔幻轻松神秘轻盈.mp3", 
+            title: "《光影的未知共鸣》",
+            tags: ["光影交错", "未知探索", "情绪涌动"],
+            emotions: [{name: '好奇', val: 80, color: 'bg-white/80'}, {name: '宁静', val: 65, color: 'bg-white/60'}, {name: '温暖', val: 55, color: 'bg-white/40'}],
+            params: { bpm: '90 BPM', key: 'F Major', genre: 'Classical', timbre: '混合音色' }
+        };
+
+        let currentMatch = null;
+        let extractedColors = [];
+
+        // ================= 4. 数据与流程逻辑 =================
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+        resetBtn.addEventListener('click', resetUI);
+        generateMusicBtn.addEventListener('click', startMusicGeneration);
+        playPauseBtn.addEventListener('click', togglePlay);
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) return alert('请上传图片文件');
+
+            currentMatch = fallbackData; 
+            for(let data of artDatabase) {
+                if (data.keywords.some(kw => file.name.includes(kw))) { currentMatch = data; break; }
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadArea.classList.add('hidden'); previewArea.classList.remove('hidden'); resetBtn.classList.remove('hidden'); imagePreview.src = e.target.result;
+                generatedAudio.pause(); generatedAudio.currentTime = 0; 
+                
+                window.scrollTo({ top: 100, behavior: 'smooth' });
+                startAnalysis();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function startAnalysis() {
+            scanner.style.display = 'block'; analysisOverlay.style.opacity = '1'; analysisOverlay.classList.remove('hidden'); emptyState.classList.add('hidden'); resultsArea.classList.add('hidden'); musicPlayerArea.classList.add('hidden');
+            rightPanelTitle.querySelector('span').innerText = '共鸣光谱'; rightPanelIcon.setAttribute('data-lucide', 'brain-circuit'); lucide.createIcons();
+            const img = new Image(); img.onload = () => extractFeatures(img); img.src = imagePreview.src;
+        }
+
+        function extractFeatures(img) {
+            analysisText.innerText = "解析画作色彩...";
+            const canvas = document.getElementById('hidden-canvas'); const ctx = canvas.getContext('2d'); canvas.width = 5; canvas.height = 5; ctx.drawImage(img, 0, 0, 5, 5);
+            const imageData = ctx.getImageData(0, 0, 5, 5).data; extractedColors = [];
+            
+            // 骰子5点阵型采样，完美避开纯黑柏树和阴影边缘漏洞
+            const sampleIndices = [6, 8, 12, 16, 18]; 
+            sampleIndices.forEach(idx => {
+                const i = idx * 4;
+                let r = Math.min(255, imageData[i] + 35);
+                let g = Math.min(255, imageData[i+1] + 35);
+                let b = Math.min(255, imageData[i+2] + 35);
+                extractedColors.push(`rgb(${r},${g},${b})`);
+            });
+            setTimeout(() => { analysisText.innerText = "推演情绪映射..."; setTimeout(() => showResults(), 1200); }, 800);
+        }
+
+        function showResults() {
+            scanner.style.display = 'none'; analysisOverlay.style.opacity = '0'; setTimeout(() => analysisOverlay.classList.add('hidden'), 500);
+            resultsArea.classList.remove('hidden'); resultsArea.classList.add('flex');
+            
+            colorPalette.innerHTML = ''; extractedColors.forEach(color => { const div = document.createElement('div'); div.className = 'w-6 h-6 rounded-full shadow-md border border-white/20 color-swatch'; div.style.backgroundColor = color; colorPalette.appendChild(div); });
+            
+            visionTags.innerHTML = ''; 
+            currentMatch.tags.forEach(tag => { const span = document.createElement('span'); span.className = 'px-2.5 py-1 bg-white/5 text-white/80 text-[10px] tracking-wider rounded-full border border-white/10'; span.innerText = tag; visionTags.appendChild(span); });
+            
+            emotionBars.innerHTML = ''; emotionLabels.innerHTML = ''; 
+            const displayEmotions = [...currentMatch.emotions];
+            while (displayEmotions.length < 5) { displayEmotions.push({name: '...', val: Math.floor(Math.random()*15)+5, color: 'bg-white/20'}); }
+
+            displayEmotions.forEach(emo => {
+                const barContainer = document.createElement('div'); barContainer.className = 'w-1/5 flex flex-col justify-end h-full bg-black/20 rounded-t-sm overflow-hidden border-b border-white/10';
+                const bar = document.createElement('div'); bar.className = `w-full ${emo.color} rounded-t-sm transition-all duration-1000 ease-out`; bar.style.height = '0%'; barContainer.appendChild(bar); emotionBars.appendChild(barContainer);
+                const label = document.createElement('span'); label.innerText = emo.name; emotionLabels.appendChild(label);
+                setTimeout(() => { bar.style.height = `${emo.val}%`; }, 100);
+            });
+
+            document.getElementById('res-bpm').innerText = currentMatch.params.bpm; document.getElementById('res-key').innerText = currentMatch.params.key; document.getElementById('res-genre').innerText = currentMatch.params.genre; document.getElementById('res-timbre').innerText = currentMatch.params.timbre;
+        }
+
+        // ================= 5. 流畅的加载动画与播放 (本地映射修复版) =================
+        function startMusicGeneration() {
+            generationLoadingArea.classList.remove('hidden'); 
+            generationLoadingArea.classList.add('flex');
+
+            // 【关键修复】：在手指触碰按钮的第一瞬间提前绑定 src 并载入，静音瞬放解锁手机浏览器权限
+            generatedAudio.src = currentMatch.audioUrl; 
+            generatedAudio.load();
+            generatedAudio.play().then(() => { generatedAudio.pause(); }).catch(e => console.log('手机安全解锁绑定中'));
+            
+            const updateProgress = (targetPercent, title, sub) => {
+                generationProgressBar.style.width = `${targetPercent}%`;
+                generationProgressText.innerText = `${targetPercent}%`;
+                loadingStatusText.innerText = title;
+                loadingSubText.innerText = sub;
+            };
+
+            updateProgress(15, '解析画作笔触...', '正在读取色彩分布');
+            setTimeout(() => { updateProgress(45, '生成共振频率...', '视觉转换为声学参数'); }, 1000);
+            setTimeout(() => { updateProgress(85, '合成专属音轨...', '加载乐器音色'); }, 2200);
+            setTimeout(() => {
+                updateProgress(100, '映射完成', '进入听觉空间');
+                setTimeout(() => showMusicPlayer(), 600);
+            }, 3200);
+        }
+
+        function showMusicPlayer() {
+            generationLoadingArea.classList.add('hidden'); generationLoadingArea.classList.remove('flex'); resultsArea.classList.add('hidden'); resultsArea.classList.remove('flex');
+            rightPanelTitle.querySelector('span').innerText = '专属音乐空间'; rightPanelIcon.setAttribute('data-lucide', 'headphones'); lucide.createIcons();
+            
+            if (extractedColors.length) playerCoverBg.style.backgroundColor = extractedColors[0];
+            
+            playerSongTitle.innerText = currentMatch.title; 
+            musicPlayerArea.classList.remove('hidden'); musicPlayerArea.classList.add('flex'); 
+            
+            // 自动平滑滚动到底部播放器并触发播放
+            setTimeout(() => {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                togglePlay();
+            }, 100);
+        }
+
+        function togglePlay() {
+            if (generatedAudio.paused) { 
+                generatedAudio.play().catch(e => console.log('触发拦截重试机制')); 
+                musicPlayerArea.classList.remove('paused'); playIcon.classList.add('hidden'); pauseIcon.classList.remove('hidden'); 
+            } else { 
+                generatedAudio.pause(); musicPlayerArea.classList.add('paused'); playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); 
+            }
+        }
+
+        function resetUI() {
+            generatedAudio.pause(); generatedAudio.currentTime = 0; musicPlayerArea.classList.add('paused'); playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden');
+            fileInput.value = ''; previewArea.classList.add('hidden'); analysisOverlay.classList.remove('hidden'); uploadArea.classList.remove('hidden'); resetBtn.classList.add('hidden');
+            resultsArea.classList.remove('flex'); resultsArea.classList.add('hidden'); musicPlayerArea.classList.remove('flex'); musicPlayerArea.classList.add('hidden'); emptyState.classList.remove('hidden');
+            rightPanelTitle.querySelector('span').innerText = '共鸣光谱'; rightPanelIcon.setAttribute('data-lucide', 'brain-circuit'); playerSongTitle.innerText = '光影低语'; lucide.createIcons();
+            generationProgressBar.style.width = '0%'; generationProgressText.innerText = '0%';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

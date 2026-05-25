@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LumenWhisper - 记忆档案馆 (小程序版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&family=Courier+Prime&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #020202; color: #f8fafc; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+
+        /* 移动端 App 容器，约束尺寸 393px 宽 */
+        #app-container {
+            width: 100%; max-width: 393px; margin: 0 auto; min-height: 100vh; position: relative;
+            background-color: transparent; box-shadow: 0 0 50px rgba(255,255,255,0.05);
+        }
+
+        /* 底部导航栏 */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 393px;
+            display: flex; justify-content: space-around; align-items: center;
+            background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+            z-index: 50;
+        }
+        .bottom-nav a { display: flex; flex-direction: column; align-items: center; gap: 4px; color: rgba(255, 255, 255, 0.4); text-decoration: none; transition: color 0.3s; }
+        .bottom-nav a.active, .bottom-nav a:hover { color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+
+        /* ================= 基础 3D 记忆罐头 CSS (移动端微调尺寸) ================= */
+        .memory-jar {
+            position: relative; width: 100%; max-width: 160px; aspect-ratio: 2/3; margin: 0 auto;
+            border-radius: 8px 8px 20px 20px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.15); border-top: none;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.8), inset -8px 0 15px rgba(0,0,0,0.5), inset 3px 0 10px rgba(255,255,255,0.1);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+        /* 手机端主要靠点击，弱化 hover，避免点击时闪烁 */
+        .memory-jar:active { transform: scale(0.98); }
+
+        .jar-lid {
+            position: absolute; top: -2px; left: -3%; width: 106%; height: 18px;
+            background: linear-gradient(to right, #555 0%, #ccc 20%, #999 50%, #ddd 80%, #444 100%);
+            border-radius: 6px 6px 3px 3px; box-shadow: 0 4px 6px rgba(0,0,0,0.6), inset 0 2px 2px rgba(255,255,255,0.8);
+            z-index: 30; border-bottom: 1px solid #222; transform-origin: left bottom;
+        }
+
+        .jar-highlight {
+            position: absolute; top: 15px; left: 12%; width: 10px; height: 90%;
+            background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.25), rgba(255,255,255,0));
+            transform: skewX(-3deg); pointer-events: none; z-index: 25; border-radius: 20px;
+        }
+
+        .jar-content {
+            position: absolute; top: 20px; left: 12px; right: 12px; bottom: 15px;
+            display: flex; justify-content: center; align-items: center; border-radius: 5px;
+            overflow: hidden; 
+        }
+        .jar-photo {
+            width: 100%; height: 100%; object-fit: cover;
+            filter: grayscale(80%) sepia(30%) brightness(0.7); opacity: 0.7;
+            transition: all 0.5s ease; z-index: 10;
+        }
+
+        .jar-label {
+            position: absolute; top: 45%; left: -2%; width: 104%; background: #f4f4f0; color: #111; padding: 10px 8px;
+            background-image: linear-gradient(to right, rgba(0,0,0,0.1) 0%, rgba(255,255,255,0.8) 20%, rgba(255,255,255,0.8) 80%, rgba(0,0,0,0.15) 100%), repeating-linear-gradient(transparent, transparent 19px, rgba(0,0,0,0.08) 20px);
+            background-blend-mode: multiply; box-shadow: 0 5px 15px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,1);
+            z-index: 40; font-family: 'Courier Prime', monospace; transform: translateY(-50%); border-top: 1px solid #ccc; border-bottom: 1px solid #999;
+            transition: opacity 0.5s;
+        }
+        .label-date { font-weight: bold; font-size: 0.55rem; color: #555; margin-bottom: 2px; }
+        .label-loc { font-size: 0.5rem; color: #777; margin-bottom: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 2px; line-height: 1.2;}
+        .label-desc { font-size: 0.55rem; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+
+        /* 移动端双列网格布局 */
+        .archive-grid { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 30px 15px; 
+            padding: 20px 15px 100px 15px; /* 底部留出导航栏空间 */
+        }
+
+        /* ================= 沉浸式解封动画 (Modal) 核心 CSS ================= */
+        #modal-jar-wrapper { transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+        
+        .lid-unsealed {
+            transform: translateY(-50px) rotate(-25deg) translateX(-15px);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        }
+
+        /* 移动端飞行轨迹重新计算 */
+        .photo-extracted {
+            transform: translateY(-160px) scale(1.6);
+            filter: grayscale(0%) sepia(0%) brightness(1.1) !important;
+            opacity: 1 !important;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.9), 0 0 30px rgba(255,255,255,0.15);
+            z-index: 100 !important;
+            border-radius: 6px;
+            transition: all 1.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+        }
+
+        .jar-faded {
+            transform: scale(0.9) translateY(40px);
+            background: rgba(255,255,255,0.01) !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
+            border-color: rgba(255,255,255,0.02) !important;
+        }
+        .jar-faded .jar-lid, .jar-faded .jar-highlight, .jar-faded .jar-label {
+            opacity: 0.15; filter: blur(4px); transition: all 0.8s ease;
+        }
+
+        /* 音乐波形 */
+        .visualizer-bar { width: 3px; border-radius: 2px; background: rgba(255,255,255,0.8); animation: bounce 1s ease-in-out infinite alternate; transform-origin: bottom; }
+        @keyframes bounce { 0% { transform: scaleY(0.2); opacity: 0.5; } 100% { transform: scaleY(1); opacity: 1; } }
+        .paused .visualizer-bar { animation-play-state: paused; transform: scaleY(0.1); }
+    </style>
+</head>
+<body>
+
+    <canvas id="starfield" class="fixed inset-0 w-full h-full -z-10 pointer-events-none"></canvas>
+
+    <div id="app-container">
+
+        <header class="w-full flex flex-col items-center justify-center pt-[max(40px,env(safe-area-inset-top))] pb-4 text-center relative z-10">
+            <h1 class="text-2xl font-bold tracking-widest text-white inline-block" style="font-family: 'Playfair Display', serif; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 4px;">
+                Memory Archive
+            </h1>
+            <p class="text-white/50 font-light text-[10px] mt-2 tracking-[0.2em] uppercase">世界名画声音馆</p>
+        </header>
+
+        <main class="archive-grid z-10 relative" id="gallery-root">
+            </main>
+
+        <nav class="bottom-nav">
+            <a href="index.html">
+                <i data-lucide="home" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">首页</span>
+            </a>
+            <a href="experience.html">
+                <i data-lucide="aperture" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">体验</span>
+            </a>
+            <a href="memory.html" class="active">
+                <i data-lucide="archive" class="w-5 h-5"></i>
+                <span class="text-[9px] tracking-widest">记忆</span>
+            </a>
+        </nav>
+
+        <div id="memory-modal" class="fixed inset-0 bg-black/95 backdrop-blur-xl z-[100] hidden flex-col items-center justify-center opacity-0 transition-opacity duration-700">
+            
+            <button id="close-modal" class="absolute top-[max(20px,env(safe-area-inset-top))] right-6 text-white/50 hover:text-white transition-colors z-[110] p-2 bg-white/5 rounded-full backdrop-blur-md">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+
+            <div id="modal-jar-wrapper" class="relative w-[180px] h-[270px] mt-10">
+                <div id="modal-jar" class="memory-jar w-full h-full cursor-default hover:transform-none !transition-all !duration-1000 !max-w-none">
+                    <div id="modal-lid" class="jar-lid"></div>
+                    <div class="jar-highlight"></div>
+                    
+                    <div class="jar-content !overflow-visible"> 
+                        <img id="modal-photo" src="" class="jar-photo absolute">
+                    </div>
+
+                    <div id="modal-label" class="jar-label">
+                        <div id="modal-lbl-date" class="label-date"></div>
+                        <div id="modal-lbl-loc" class="label-loc"></div>
+                        <div id="modal-lbl-desc" class="label-desc"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 w-full max-w-sm flex flex-col items-center z-[110] relative px-6">
+                
+                <button id="unseal-btn" class="px-8 py-3.5 rounded-full border border-white/20 bg-white/10 text-white/90 tracking-widest text-sm transition-all animate-pulse flex items-center gap-2 backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                    <i data-lucide="unlock" class="w-4 h-4"></i> 点击解封记忆
+                </button>
+
+                <div id="modal-player" class="hidden flex-col items-center w-full opacity-0 transition-opacity duration-1000 absolute top-0">
+                    <h3 id="player-title" class="text-white/90 font-light tracking-widest mb-1 text-base" style="font-family: 'Playfair Display', serif;">记忆共鸣</h3>
+                    <p id="player-subtitle" class="text-white/40 text-[10px] tracking-widest mb-6 uppercase">Audio Playing...</p>
+                    
+                    <div id="visualizer" class="flex items-end justify-center gap-[3px] h-6 mb-6 paused">
+                        <div class="visualizer-bar h-full" style="animation-delay: 0.1s"></div>
+                        <div class="visualizer-bar h-3/4" style="animation-delay: 0.3s"></div>
+                        <div class="visualizer-bar h-1/2" style="animation-delay: 0.5s"></div>
+                        <div class="visualizer-bar h-full" style="animation-delay: 0.2s"></div>
+                        <div class="visualizer-bar h-5/6" style="animation-delay: 0.4s"></div>
+                        <div class="visualizer-bar h-2/3" style="animation-delay: 0.6s"></div>
+                        <div class="visualizer-bar h-full" style="animation-delay: 0.15s"></div>
+                    </div>
+
+                    <button id="toggle-audio-btn" class="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-md shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+                        <i data-lucide="pause" id="icon-pause" class="w-6 h-6"></i>
+                        <i data-lucide="play" id="icon-play" class="w-6 h-6 hidden ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <audio id="memory-audio" src=""></audio>
+        </div>
+
+    </div> <script>
+        lucide.createIcons();
+
+        // ================= 1. 背景星空引擎 (支持移动端触摸) =================
+        const canvas = document.getElementById('starfield');
+        const ctx = canvas.getContext('2d');
+        let width, height; let stars = []; const numStars = 250; // 降低数量优化手机性能
+        let mouseX = 0, mouseY = 0, targetMouseX = 0, targetMouseY = 0;
+
+        function resizeCanvas() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+        // 支持手机端触摸划动星空
+        document.addEventListener('touchmove', (e) => { targetMouseX = (e.touches[0].clientX - width / 2) * 0.5; targetMouseY = (e.touches[0].clientY - height / 2) * 0.5; });
+        document.addEventListener('mousemove', (e) => { targetMouseX = (e.clientX - width / 2) * 0.5; targetMouseY = (e.clientY - height / 2) * 0.5; });
+
+        class Star {
+            constructor() { this.reset(); }
+            reset() { this.x = (Math.random() - 0.5) * width * 2; this.y = (Math.random() - 0.5) * height * 2; this.z = Math.random() * width; this.pz = this.z; }
+            update(speed) { this.z -= speed; if (this.z < 1) { this.reset(); this.z = width; this.pz = this.z; } }
+            draw() {
+                const cx = width / 2 + mouseX, cy = height / 2 + mouseY;
+                const sx = (this.x / this.z) * width + cx, sy = (this.y / this.z) * height + cy;
+                const px = (this.x / this.pz) * width + cx, py = (this.y / this.pz) * height + cy;
+                this.pz = this.z;
+                if (sx < 0 || sx > width || sy < 0 || sy > height) return;
+                const size = (1 - this.z / width) * 2, opacity = 1 - this.z / width;
+                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
+                ctx.lineWidth = size; ctx.strokeStyle = `rgba(230, 240, 255, ${opacity})`; ctx.stroke();
+            }
+        }
+        for (let i = 0; i < numStars; i++) stars.push(new Star());
+
+        function animateStars() {
+            mouseX += (targetMouseX - mouseX) * 0.05; mouseY += (targetMouseY - mouseY) * 0.05;
+            ctx.fillStyle = 'rgba(2, 2, 2, 0.2)'; ctx.fillRect(0, 0, width, height);
+            const speedFactor = 1.5 + (Math.abs(targetMouseX) / width) * 5;
+            stars.forEach(star => { star.update(speedFactor); star.draw(); });
+            requestAnimationFrame(animateStars);
+        }
+        animateStars();
+
+        // ================= 2. 本地记忆数据 =================
+        const mockMemories = [
+            { id: 1, img: "./风铃日系故事感魔幻轻松神秘轻盈.jpg", date: "1890-02", loc: "《杏花绽放的微风》", desc: "自然生机，神秘莫测。风铃清脆，微风仿佛穿透了百年的枝头。", audio: "./风铃日系故事感魔幻轻松神秘轻盈.mp3" },
+            { id: 2, img: "./钢琴悲伤缓慢下雨单一按键.jpg", date: "1888-09", loc: "《雨夜咖啡馆的倒影》", desc: "孤独呢喃。极简钢琴声中，雨滴沉闷地敲打着青石板。", audio: "./钢琴悲伤缓慢下雨单一按键.mp3" },
+            { id: 3, img: "./钢琴鸟叫自然温暖缓慢安逸舒适.jpg", date: "1875-01", loc: "《微风中的和煦晨光》", desc: "温馨日常。鸟鸣婉转，琴键温柔地洒下和煦的晨光。", audio: "./钢琴鸟叫自然温暖缓慢安逸舒适.mp3" },
+            { id: 4, img: "./钢琴弦乐快速轻快重复自由希望——梵高星空.jpg", date: "1889-06", loc: "《星夜的自由回响》", desc: "宏大叙事。弦乐激荡，繁星在深蓝夜幕中绚烂旋转。", audio: "./钢琴弦乐快速轻快重复自由希望——梵高星空.mp3" },
+            { id: 5, img: "./钢琴弦乐青春年轻犹豫期待生机懵懂.jpg", date: "1872-11", loc: "《印象·日出的懵懂》", desc: "光影交错。清脆钢琴带着青春独有的期待与生机。", audio: "./钢琴弦乐青春年轻犹豫期待生机懵懂.mp3" },
+            { id: 6, img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80", date: "2022-07", loc: "Santorini, Greece", desc: "海风吹过白墙蓝顶。那天的晚霞像被打翻的调色盘。", audio: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+            { id: 7, img: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=400&q=80", date: "2024-01", loc: "Kyoto, Japan", desc: "踏入古寺的瞬间，风吹过竹林发出沙沙的低语声。", audio: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+            { id: 8, img: "https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?auto=format&fit=crop&w=400&q=80", date: "2023-09", loc: "Route 66, USA", desc: "公路旅行的第三天。电台里放着老摇滚，自由感扑面而来。", audio: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }
+        ];
+
+        // ================= 3. 渲染主网格 =================
+        const galleryRoot = document.getElementById('gallery-root');
+
+        function renderJars() {
+            mockMemories.forEach((mem, index) => {
+                const jarDiv = document.createElement('div');
+                jarDiv.className = 'memory-jar';
+                jarDiv.style.opacity = '0';
+                jarDiv.style.transform = 'translateY(30px)';
+                jarDiv.style.transition = 'opacity 0.6s ease, transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                
+                jarDiv.onclick = () => openMemoryModal(mem);
+
+                jarDiv.innerHTML = `
+                    <div class="jar-lid"></div>
+                    <div class="jar-highlight"></div>
+                    <div class="jar-content"><img src="${mem.img}" class="jar-photo"></div>
+                    <div class="jar-label">
+                        <div class="label-date"># ${mem.date}</div>
+                        <div class="label-loc">📍 ${mem.loc}</div>
+                        <div class="label-desc">${mem.desc}</div>
+                    </div>
+                `;
+                galleryRoot.appendChild(jarDiv);
+
+                setTimeout(() => { jarDiv.style.opacity = '1'; jarDiv.style.transform = 'translateY(0)'; }, 50 + index * 80);
+            });
+        }
+        window.addEventListener('DOMContentLoaded', renderJars);
+
+        // ================= 4. 沉浸式 Modal 交互逻辑 =================
+        const modal = document.getElementById('memory-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const modalJar = document.getElementById('modal-jar');
+        const modalLid = document.getElementById('modal-lid');
+        const modalPhoto = document.getElementById('modal-photo');
+        const unsealBtn = document.getElementById('unseal-btn');
+        const modalPlayer = document.getElementById('modal-player');
+        const memoryAudio = document.getElementById('memory-audio');
+        const toggleAudioBtn = document.getElementById('toggle-audio-btn');
+        const visualizer = document.getElementById('visualizer');
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+
+        function openMemoryModal(memData) {
+            modalPhoto.src = memData.img;
+            document.getElementById('modal-lbl-date').innerText = `# ${memData.date}`;
+            document.getElementById('modal-lbl-loc').innerText = `📍 ${memData.loc}`;
+            document.getElementById('modal-lbl-desc').innerText = memData.desc;
+            document.getElementById('player-title').innerText = memData.loc.replace(/《|》/g, ''); 
+            memoryAudio.src = memData.audio;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => { modal.style.opacity = '1'; }, 20);
+        }
+
+        unsealBtn.addEventListener('click', () => {
+            unsealBtn.classList.add('hidden');
+            modalLid.classList.add('lid-unsealed');
+
+            setTimeout(() => {
+                modalPhoto.classList.add('photo-extracted');
+                modalJar.classList.add('jar-faded');
+            }, 500);
+
+            setTimeout(() => {
+                modalPlayer.classList.remove('hidden');
+                modalPlayer.classList.add('flex');
+                setTimeout(() => { modalPlayer.style.opacity = '1'; }, 50);
+                
+                playAudio();
+            }, 1400);
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            pauseAudio();
+            
+            modal.style.opacity = '0';
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                
+                modalLid.classList.remove('lid-unsealed');
+                modalPhoto.classList.remove('photo-extracted');
+                modalJar.classList.remove('jar-faded');
+                
+                unsealBtn.classList.remove('hidden');
+                modalPlayer.classList.add('hidden');
+                modalPlayer.classList.remove('flex');
+                modalPlayer.style.opacity = '0';
+            }, 500); 
+        });
+
+        function playAudio() {
+            memoryAudio.play().catch(e => console.log('等待用户交互'));
+            visualizer.classList.remove('paused');
+            iconPlay.classList.add('hidden');
+            iconPause.classList.remove('hidden');
+        }
+
+        function pauseAudio() {
+            memoryAudio.pause();
+            visualizer.classList.add('paused');
+            iconPlay.classList.remove('hidden');
+            iconPause.classList.add('hidden');
+        }
+
+        toggleAudioBtn.addEventListener('click', () => {
+            if (memoryAudio.paused) playAudio();
+            else pauseAudio();
+        });
+
+        memoryAudio.addEventListener('ended', pauseAudio);
+
+    </script>
+</body>
+</html>
